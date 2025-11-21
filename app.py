@@ -66,7 +66,7 @@ if submitted:
         with st.spinner("Generating letter..."):
             try:
                 genai.configure(api_key=api_key)
-                model = genai.GenerativeModel('gemini-pro')
+                model = genai.GenerativeModel('gemini-1.5-flash')
                 prompt = f"Write ONLY body for railway letter. To: {to_address}, Sub: {subject_text}, Details: {instructions}. Tone: Formal Official."
                 response = model.generate_content(prompt)
                 

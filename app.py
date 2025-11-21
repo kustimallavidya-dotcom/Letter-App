@@ -68,7 +68,7 @@ if submitted:
         with st.spinner("Generating professional letter..."):
             try:
                 # Model Setup
-                model = genai.GenerativeModel('gemini-pro')
+                model = genai.GenerativeModel('gemini-1.0promodel000')
 
                 
                 # Prompt for AI

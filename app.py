@@ -1,11 +1,11 @@
 import streamlit as st
-import google.generativeai as genai
+from openai import OpenAI
 from datetime import datetime
 
 # --- Page Configuration ---
 st.set_page_config(page_title="Railway Letter Generator", page_icon="🚆", layout="centered")
 
-# --- CSS Styles (A4 Paper Look) ---
+# --- CSS Styles (A4 Paper Look) - जसेच्या तसे ठेवले आहे ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Times+New+Roman&display=swap');
@@ -40,12 +40,22 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- API Key Setup (Automatic) ---
-# ही सेटिंग तुमच्या Streamlit Secrets मधून Key घेईल
-if "GOOGLE_API_KEY" in st.secrets:
-    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+# --- API Key Setup (DeepSeek) ---
+# Streamlit Secrets मधून Key घेईल. नाव: DEEPSEEK_API_KEY
+if "DEEPSEEK_API_KEY" in st.secrets:
+    api_key = st.secrets["DEEPSEEK_API_KEY"]
 else:
-    st.error("API Key सापडली नाही. कृपया Streamlit Settings > Secrets मध्ये Key ॲड करा.")
+    st.error("API Key सापडली नाही. कृपया Streamlit Secrets मध्ये 'DEEPSEEK_API_KEY' ॲड करा.")
+    st.stop()
+
+# DeepSeek Client Setup
+try:
+    client = OpenAI(
+        api_key=api_key, 
+        base_url="https://api.deepseek.com"
+    )
+except Exception as e:
+    st.error(f"Connection Error: {e}")
     st.stop()
 
 # --- Sidebar Inputs ---
@@ -59,36 +69,39 @@ with st.sidebar.form("letter_form"):
     submitted = st.form_submit_button("Generate Letter 🚆")
 
 # --- Main App Logic ---
-st.title("🚆 Railway Letter Generator")
+st.title("🚆 Railway Letter Generator (DeepSeek)")
 
 if submitted:
     if not details:
         st.warning("Please enter details for the letter.")
     else:
-        with st.spinner("Generating professional letter..."):
+        with st.spinner("Generating professional letter with DeepSeek..."):
             try:
-                # Model Setup
-                model = genai.GenerativeModel('gemini-1.5-flash')
+                # Prompt Drafting
+                system_prompt = "You are a professional assistant for Indian Railways employees. Write a formal official letter. Use standard Indian official letter format. Output ONLY the HTML content for the letter body paragraphs. Do not output markdown code blocks."
                 
-                # Prompt for AI
-                prompt = f"""
-                You are a professional assistant for Indian Railways employees.
-                Write a formal official letter based on these details:
-                
+                user_prompt = f"""
+                Details for the letter:
                 Date: {letter_date.strftime('%d-%m-%Y')}
                 To: {recipient}
                 Subject: {subject}
                 Details: {details}
                 
-                Format:
-                - Use standard Indian official letter format.
-                - Keep the tone professional, polite, and formal.
-                - Do not include placeholders like [Your Name] inside the body if not provided, just leave space for signature.
-                - Output ONLY the HTML content for the letter body (paragraphs), do not output markdown code blocks.
+                Keep the tone professional, polite, and formal.
                 """
+
+                # DeepSeek Call
+                response = client.chat.completions.create(
+                    model="deepseek-chat",
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    stream=False
+                )
                 
-                response = model.generate_content(prompt)
-                letter_content = response.text
+                # Extracting Text
+                letter_content = response.choices[0].message.content
                 
                 # Display Letter on "A4 Paper"
                 st.markdown(f"""

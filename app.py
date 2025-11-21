@@ -1,93 +1,120 @@
 import streamlit as st
 import google.generativeai as genai
-import datetime
-import base64
-import os
+from datetime import datetime
 
-# --- Page Config ---
-st.set_page_config(page_title="Railway Letter Generator", page_icon="🚆", layout="wide")
+# --- Page Configuration ---
+st.set_page_config(page_title="Railway Letter Generator", page_icon="🚆", layout="centered")
 
-# --- Function to Load Image ---
-def get_local_image_base64(file_path):
-    try:
-        with open(file_path, "rb") as image_file:
-            encoded_string = base64.b64encode(image_file.read()).decode()
-        return f"data:image/png;base64,{encoded_string}"
-    except:
-        return None
+# --- CSS Styles (A4 Paper Look) ---
+st.markdown("""
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Times+New+Roman&display=swap');
+    
+    .main {
+        background-color: #f0f2f6;
+    }
+    .a4-container {
+        background-color: white;
+        padding: 40px;
+        margin: auto;
+        box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        font-family: 'Times New Roman', serif;
+        font-size: 12pt;
+        line-height: 1.5;
+        color: black;
+        min-height: 800px;
+    }
+    .header-center { text-align: center; font-weight: bold; margin-bottom: 20px; }
+    .text-right { text-align: right; }
+    .subject-line { font-weight: bold; margin: 20px 0; }
+    .letter-body { text-align: justify; white-space: pre-wrap; }
+    .footer { margin-top: 40px; text-align: right; }
+    
+    /* Print Settings */
+    @media print {
+        body * { visibility: hidden; }
+        .a4-container, .a4-container * { visibility: visible; }
+        .a4-container { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 20px; box-shadow: none; }
+        .stApp > header, .stApp > footer, .stSidebar { display: none; }
+    }
+    </style>
+""", unsafe_allow_html=True)
 
-# --- CSS Styles (A4 Layout) ---
-a4_css = """
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700&display=swap');
-.a4-container {
-    width: 210mm; min-height: 297mm; padding: 20mm; margin: 10mm auto;
-    background: white; font-family: 'Merriweather', serif; color: #333;
-    box-shadow: 0 0 10px rgba(0,0,0,0.1);
-}
-.header-center { text-align: center; font-weight: bold; font-size: 24px; text-transform: uppercase; margin-bottom: 30px; color: #000; }
-.top-right-info { text-align: right; margin-bottom: 40px; font-weight: bold; }
-.left-info { text-align: left; margin-bottom: 20px; }
-.subject-line { font-weight: bold; margin-top: 15px; margin-bottom: 25px; }
-.letter-body { text-align: justify; line-height: 1.6; margin-bottom: 50px; white-space: pre-wrap; }
-.signature-block { float: right; text-align: center; width: 250px; margin-top: 20px; }
-.signature-image { max-width: 150px; max-height: 100px; margin: 10px auto; display: block; }
-.signatory-name { font-weight: bold; margin-top: 5px; }
-.signatory-desig { font-weight: bold; }
+# --- API Key Setup (Automatic) ---
+# ही सेटिंग तुमच्या Streamlit Secrets मधून Key घेईल
+if "GOOGLE_API_KEY" in st.secrets:
+    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+else:
+    st.error("API Key सापडली नाही. कृपया Streamlit Settings > Secrets मध्ये Key ॲड करा.")
+    st.stop()
 
-/* प्रिंट करताना फक्त पत्र दिसावे */
-@media print {
-    body * { visibility: hidden; }
-    .a4-container, .a4-container * { visibility: visible; }
-    .a4-container { position: absolute; left: 0; top: 0; margin: 0; padding: 20mm !important; box-shadow: none; }
-    .stApp > header, .stApp > footer, .stSidebar { display: none !important; }
-}
-</style>
-"""
+# --- Sidebar Inputs ---
+st.sidebar.title("📝 Letter Details")
+with st.sidebar.form("letter_form"):
+    letter_date = st.date_input("Date", datetime.today())
+    recipient = st.text_area("To (Recipient Details)", "The DRM,\nCentral Railway,\nNagpur Division.")
+    subject = st.text_input("Subject", "Request for...")
+    details = st.text_area("Letter Details (Points)", "Please write a letter regarding my leave application...")
+    
+    submitted = st.form_submit_button("Generate Letter 🚆")
 
-# --- MAIN APP ---
-st.sidebar.title("⚙️ Settings")
-# टीप: GitHub वर टाकताना आपली API Key इथे हार्डकोड करू नका, ती Input मध्येच ठेवा.
-api_key = st.sidebar.text_input("Gemini API Key", type="password")
-
+# --- Main App Logic ---
 st.title("🚆 Railway Letter Generator")
 
-with st.sidebar.form("inputs"):
-    letter_date = st.date_input("Select Date", datetime.date.today())
-    to_address = st.text_area("To (Recipient)", height=100, placeholder="The DRM,\nCentral Railway...")
-    subject_text = st.text_input("Subject")
-    instructions = st.text_area("Details for Letter Body", height=150)
-    submitted = st.form_submit_button("Generate Letter")
-
 if submitted:
-    if not api_key:
-        st.error("Please enter Gemini API Key first!")
+    if not details:
+        st.warning("Please enter details for the letter.")
     else:
-        with st.spinner("Generating letter..."):
+        with st.spinner("Generating professional letter..."):
             try:
-                genai.configure(api_key=api_key)
+                # Model Setup
                 model = genai.GenerativeModel('gemini-1.5-flash')
-                prompt = f"Write ONLY body for railway letter. To: {to_address}, Sub: {subject_text}, Details: {instructions}. Tone: Formal Official."
-                response = model.generate_content(prompt)
                 
-                # सही ऑटोमॅटिक घेणे (signature.png)
-                sig_img = get_local_image_base64("signature.png")
-                sig_html = f'<img src="{sig_img}" class="signature-image">' if sig_img else "<br><small style='color:red'>signature.png missing</small><br>"
-
-                final_html = f"""
-                {a4_css}
-                <div class="a4-container">
-                    <div class="header-center">Central Railway</div>
-                    <div class="top-right-info">TI/O/KRD<br>Date: {letter_date.strftime("%d/%m/%Y")}</div>
-                    <div class="left-info">To,<br>{to_address.replace(chr(10), '<br>')}</div>
-                    <div class="subject-line">Sub: {subject_text}</div>
-                    <div class="letter-body">{response.text}</div>
-                    <div class="signature-block">Yours Faithfully,{sig_html}
-                    <div class="signatory-name">R.H.Wankhede</div>
-                    <div class="signatory-desig">TI/KRD</div></div>
-                    <div style="clear: both;"></div>
-                </div>
+                # Prompt for AI
+                prompt = f"""
+                You are a professional assistant for Indian Railways employees.
+                Write a formal official letter based on these details:
+                
+                Date: {letter_date.strftime('%d-%m-%Y')}
+                To: {recipient}
+                Subject: {subject}
+                Details: {details}
+                
+                Format:
+                - Use standard Indian official letter format.
+                - Keep the tone professional, polite, and formal.
+                - Do not include placeholders like [Your Name] inside the body if not provided, just leave space for signature.
+                - Output ONLY the HTML content for the letter body (paragraphs), do not output markdown code blocks.
                 """
-                st.markdown(final_html, unsafe_allow_html=True)
+                
+                response = model.generate_content(prompt)
+                letter_content = response.text
+                
+                # Display Letter on "A4 Paper"
+                st.markdown(f"""
+                    <div class="a4-container">
+                        <div class="text-right"><strong>Date:</strong> {letter_date.strftime('%d-%m-%Y')}</div>
+                        <br>
+                        <div style="white-space: pre-wrap;"><strong>To,</strong><br>{recipient}</div>
+                        <br>
+                        <div class="subject-line">Sub: {subject}</div>
+                        <br>
+                        <div class="letter-body">
+                            {letter_content}
+                        </div>
+                        <br><br>
+                        <div class="footer">
+                            <strong>Yours Faithfully,</strong>
+                            <br><br><br>
+                            (Signature)
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
+                
+                st.success("Letter generated successfully!")
+                
             except Exception as e:
-                st.error(f"Error: {e}")
+                st.error(f"An error occurred: {e}")
+
+else:
+    st.info("👈 डाव्या बाजूला माहिती भरा आणि 'Generate Letter' वर क्लिक करा.")

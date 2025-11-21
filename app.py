@@ -69,7 +69,7 @@ if submitted:
             try:
                 # Model Setup
     model = genai.GenerativeModel('gemini-pro')
-')
+
 
                 
                 # Prompt for AI
